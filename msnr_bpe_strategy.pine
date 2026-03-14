@@ -1,0 +1,60 @@
+//@version=5
+strategy("Malaysian SnR BPE Strategy", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// --- Inputs ---
+pivotLookback = input.int(10, title="Pivot Lookback")
+stopLossATR = input.int(14, title="ATR Length for SL")
+atrMultiplier = input.float(1.5, title="ATR Multiplier")
+
+// --- SnR Identification ---
+ph = ta.pivothigh(pivotLookback, pivotLookback)
+pl = ta.pivotlow(pivotLookback, pivotLookback)
+
+var float lastRes = na
+var float lastSup = na
+
+if not na(ph)
+    lastRes := ph
+if not na(pl)
+    lastSup := pl
+
+// --- Breakout Detection ---
+breakoutLong = ta.crossover(close, lastRes)
+breakoutShort = ta.crossunder(close, lastSup)
+
+var float brokenLevel = na
+var bool waitingForPullbackLong = false
+var bool waitingForPullbackShort = false
+
+if breakoutLong
+    brokenLevel := lastRes
+    waitingForPullbackLong := true
+    waitingForPullbackShort := false
+
+if breakoutShort
+    brokenLevel := lastSup
+    waitingForPullbackShort := true
+    waitingForPullbackLong := false
+
+// --- Pullback and Entry Logic ---
+// Pullback = price returns to touch the broken level
+pullbackLong = waitingForPullbackLong and low <= brokenLevel and close > brokenLevel
+pullbackShort = waitingForPullbackShort and high >= brokenLevel and close < brokenLevel
+
+// --- Volatility for SL ---
+atr = ta.atr(stopLossATR)
+
+if (pullbackLong)
+    strategy.entry("BPE Long", strategy.long)
+    strategy.exit("Exit Long", "BPE Long", stop=close - (atr * atrMultiplier))
+    waitingForPullbackLong := false
+
+if (pullbackShort)
+    strategy.entry("BPE Short", strategy.short)
+    strategy.exit("Exit Short", "BPE Short", stop=close + (atr * atrMultiplier))
+    waitingForPullbackShort := false
+
+// Plots
+plot(lastRes, color=color.red, title="Last Resistance")
+plot(lastSup, color=color.green, title="Last Support")
+plot(brokenLevel, color=color.orange, style=plot.style_circles, title="Broken Level")

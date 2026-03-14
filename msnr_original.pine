@@ -1,0 +1,42 @@
+//@version=5
+strategy("Malaysian SnR Strategy", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// --- Inputs ---
+pivotLookback = input.int(10, title="Pivot Lookback")
+zoneThreshold = input.float(0.1, title="Zone Size %", step=0.05) / 100
+stopLossATR = input.int(14, title="ATR Length for SL")
+atrMultiplier = input.float(1.5, title="ATR Multiplier")
+
+// --- Structure Identification (Pivots) ---
+ph = ta.pivothigh(pivotLookback, pivotLookback)
+pl = ta.pivotlow(pivotLookback, pivotLookback)
+
+// --- Zone Definitions ---
+var float resistanceZone = na
+var float supportZone = na
+
+if not na(ph)
+    resistanceZone := ph
+if not na(pl)
+    supportZone := pl
+
+// Plotting Zones
+plot(resistanceZone, color=color.red, linewidth=2, title="Res Zone", style=plot.style_circles)
+plot(supportZone, color=color.green, linewidth=2, title="Sup Zone", style=plot.style_circles)
+
+// --- Volatility for SL ---
+atr = ta.atr(stopLossATR)
+
+// --- Trading Logic ---
+// Example: Sell at Resistance, Buy at Support (Reversal)
+longCondition = ta.crossover(close, supportZone) and not na(supportZone)
+shortCondition = ta.crossunder(close, resistanceZone) and not na(resistanceZone)
+
+// --- Execution ---
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=close - (atr * atrMultiplier))
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=close + (atr * atrMultiplier))

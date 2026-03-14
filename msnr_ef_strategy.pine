@@ -1,0 +1,43 @@
+//@version=5
+strategy("Malaysian SnR EF Strategy", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// --- Inputs ---
+stopLossATR = input.int(14, title="ATR Length for SL")
+atrMultiplier = input.float(1.5, title="ATR Multiplier")
+
+// --- Engulfing Detection ---
+isBullishEG = close > high[1] and open < close[1]
+isBearishEG = close < low[1] and open > close[1]
+
+// --- Engulfing Fail (EF) Zones ---
+var float efResZone = na
+var float efSupZone = na
+
+// If a bullish EG low is broken, it becomes a Resistance zone (EF)
+if isBullishEG[1] and close < low[1]
+    efResZone := low[1]
+
+// If a bearish EG high is broken, it becomes a Support zone (EF)
+if isBearishEG[1] and close > high[1]
+    efSupZone := high[1]
+
+// --- Entry Logic ---
+// Enter Short on retest of Failed Bullish EG (EF Resistance)
+shortCondition = high >= efResZone and close < efResZone
+// Enter Long on retest of Failed Bearish EG (EF Support)
+longCondition = low <= efSupZone and close > efSupZone
+
+// --- Volatility for SL ---
+atr = ta.atr(stopLossATR)
+
+if (longCondition)
+    strategy.entry("EF Long", strategy.long)
+    strategy.exit("Exit Long", "EF Long", stop=close - (atr * atrMultiplier))
+
+if (shortCondition)
+    strategy.entry("EF Short", strategy.short)
+    strategy.exit("Exit Short", "EF Short", stop=close + (atr * atrMultiplier))
+
+// Plots
+plot(efResZone, color=color.new(color.red, 0), style=plot.style_circles, title="EF Resistance")
+plot(efSupZone, color=color.new(color.green, 0), style=plot.style_circles, title="EF Support")

@@ -1,0 +1,36 @@
+//@version=5
+strategy("Malaysian SnR Buy Strategy", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// --- Inputs ---
+pivotLookback = input.int(10, title="Pivot Lookback")
+stopLossATR = input.int(14, title="ATR Length for SL")
+atrMultiplier = input.float(1.5, title="ATR Multiplier")
+
+// --- Support Zone Identification ---
+pl = ta.pivotlow(pivotLookback, pivotLookback)
+
+var float supBottom = na
+var float supTop = na
+
+if not na(pl)
+    supBottom := low[pivotLookback]
+    supTop := math.max(open[pivotLookback], close[pivotLookback])
+
+// Plotting Zones
+plot(supBottom, color=color.new(color.green, 50), linewidth=1, title="Support Bottom")
+plot(supTop, color=color.new(color.green, 50), linewidth=1, title="Support Top")
+fill(plot(supBottom, color=na), plot(supTop, color=na), color=color.new(color.green, 90), title="Support Zone")
+
+// --- Volatility for SL ---
+atr = ta.atr(stopLossATR)
+
+// --- Trading Logic ---
+// Rejection logic: low enters zone, close above zone
+inZone = low < supTop and low > supBottom
+rejection = inZone and close > supTop
+
+strategy.risk.allow_entry_in(strategy.direction.long)
+
+if (rejection)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Exit Buy", "Buy", stop=close - (atr * atrMultiplier))

@@ -1,0 +1,36 @@
+//@version=5
+strategy("Malaysian SnR Sell Strategy", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// --- Inputs ---
+pivotLookback = input.int(10, title="Pivot Lookback")
+stopLossATR = input.int(14, title="ATR Length for SL")
+atrMultiplier = input.float(1.5, title="ATR Multiplier")
+
+// --- Resistance Zone Identification ---
+ph = ta.pivothigh(pivotLookback, pivotLookback)
+
+var float resTop = na
+var float resBottom = na
+
+if not na(ph)
+    resTop := high[pivotLookback]
+    resBottom := math.min(open[pivotLookback], close[pivotLookback])
+
+// Plotting Zones
+plot(resTop, color=color.new(color.red, 50), linewidth=1, title="Resistance Top")
+plot(resBottom, color=color.new(color.red, 50), linewidth=1, title="Resistance Bottom")
+fill(plot(resTop, color=na), plot(resBottom, color=na), color=color.new(color.red, 90), title="Resistance Zone")
+
+// --- Volatility for SL ---
+atr = ta.atr(stopLossATR)
+
+// --- Trading Logic ---
+// Rejection logic: high enters zone, close below zone
+inZone = high > resBottom and high < resTop
+rejection = inZone and close < resBottom
+
+strategy.risk.allow_entry_in(strategy.direction.short)
+
+if (rejection)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Exit Sell", "Sell", stop=close + (atr * atrMultiplier))
