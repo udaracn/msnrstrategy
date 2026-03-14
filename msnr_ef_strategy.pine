@@ -1,42 +1,65 @@
 //@version=5
-strategy("Malaysian SnR EF Strategy", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+strategy("Malaysian SnR EF Strategy - BTC Optimized", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
 
 // --- Inputs ---
 stopLossATR = input.int(14, title="ATR Length for SL")
-atrMultiplier = input.float(1.5, title="ATR Multiplier")
+atrMultiplier = input.float(2.0, title="ATR Multiplier")
+minBarsBetween = input.int(5, title="Min Bars Between EG and Fail")
+
+// --- Indicators ---
+atr = ta.atr(stopLossATR)
+avgVol = ta.sma(volume, 20)
 
 // --- Engulfing Detection ---
 isBullishEG = close > high[1] and open < close[1]
 isBearishEG = close < low[1] and open > close[1]
 
+// Track zones of recent engulfing candles
+var float lastBullishEGLow = na
+var int lastBullishEGBar = 0
+var float lastBearishEGHigh = na
+var int lastBearishEGBar = 0
+
+if isBullishEG
+    lastBullishEGLow := low[1]
+    lastBullishEGBar := bar_index
+if isBearishEG
+    lastBearishEGHigh := high[1]
+    lastBearishEGBar := bar_index
+
 // --- Engulfing Fail (EF) Zones ---
 var float efResZone = na
 var float efSupZone = na
 
-// If a bullish EG low is broken, it becomes a Resistance zone (EF)
-if isBullishEG[1] and close < low[1]
-    efResZone := low[1]
+// If a bullish EG low is broken decisively after minBarsBetween
+if na(efResZone) and not na(lastBullishEGLow) and bar_index - lastBullishEGBar >= minBarsBetween and close < lastBullishEGLow
+    efResZone := lastBullishEGLow
 
-// If a bearish EG high is broken, it becomes a Support zone (EF)
-if isBearishEG[1] and close > high[1]
-    efSupZone := high[1]
+// If a bearish EG high is broken decisively after minBarsBetween
+if na(efSupZone) and not na(lastBearishEGHigh) and bar_index - lastBearishEGBar >= minBarsBetween and close > lastBearishEGHigh
+    efSupZone := lastBearishEGHigh
+
+// Reset logic: Clear zones if price moves significantly away
+if not na(efResZone) and ta.crossover(close, efResZone * 1.05)
+    efResZone := na
+if not na(efSupZone) and ta.crossunder(close, efSupZone * 0.95)
+    efSupZone := na
 
 // --- Entry Logic ---
-// Enter Short on retest of Failed Bullish EG (EF Resistance)
-shortCondition = high >= efResZone and close < efResZone
-// Enter Long on retest of Failed Bearish EG (EF Support)
-longCondition = low <= efSupZone and close > efSupZone
-
-// --- Volatility for SL ---
-atr = ta.atr(stopLossATR)
+// Enter Short on retest of EF Resistance with volume confirmation
+shortCondition = high >= efResZone and close < efResZone and volume > avgVol
+// Enter Long on retest of EF Support with volume confirmation
+longCondition = low <= efSupZone and close > efSupZone and volume > avgVol
 
 if (longCondition)
     strategy.entry("EF Long", strategy.long)
     strategy.exit("Exit Long", "EF Long", stop=close - (atr * atrMultiplier))
+    efSupZone := na // Reset after entry
 
 if (shortCondition)
     strategy.entry("EF Short", strategy.short)
     strategy.exit("Exit Short", "EF Short", stop=close + (atr * atrMultiplier))
+    efResZone := na // Reset after entry
 
 // Plots
 plot(efResZone, color=color.new(color.red, 0), style=plot.style_circles, title="EF Resistance")

@@ -1,10 +1,14 @@
 //@version=5
-strategy("Malaysian SnR EG Strategy", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+strategy("Malaysian SnR EG Strategy - BTC Optimized", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
 
 // --- Inputs ---
 pivotLookback = input.int(10, title="Pivot Lookback")
+rsiLength = input.int(14, title="RSI Length")
 stopLossATR = input.int(14, title="ATR Length for SL")
-atrMultiplier = input.float(1.5, title="ATR Multiplier")
+atrMultiplier = input.float(2.0, title="ATR Multiplier")
+
+// --- Indicators ---
+rsi = ta.rsi(close, rsiLength)
 
 // --- SnR Identification ---
 ph = ta.pivothigh(pivotLookback, pivotLookback)
@@ -18,17 +22,16 @@ if not na(ph)
 if not na(pl)
     supLevel := pl
 
-// --- Engulfing Detection ---
+// --- Engulfing Detection with Volume Confirmation ---
 // Bullish Engulfing: current close > previous high and current open < previous close
-isBullishEG = close > high[1] and open < close[1]
+isBullishEG = close > high[1] and open < close[1] and volume > volume[1]
 // Bearish Engulfing: current close < previous low and current open > previous close
-isBearishEG = close < low[1] and open > close[1]
+isBearishEG = close < low[1] and open > close[1] and volume > volume[1]
 
 // --- Entry Logic ---
-// Long if Bullish EG at Support
-longCondition = isBullishEG and low <= supLevel * 1.001 and low >= supLevel * 0.999
-// Short if Bearish EG at Resistance
-shortCondition = isBearishEG and high >= resLevel * 0.999 and high <= resLevel * 1.001
+// Avoid entering Long if RSI is overbought (>70) or entering Short if RSI is oversold (<30)
+longCondition = isBullishEG and low <= supLevel * 1.002 and low >= supLevel * 0.998 and rsi < 70
+shortCondition = isBearishEG and high >= resLevel * 0.998 and high <= resLevel * 1.002 and rsi > 30
 
 // --- Volatility for SL ---
 atr = ta.atr(stopLossATR)
@@ -44,5 +47,5 @@ if (shortCondition)
 // Visuals
 plotshape(isBullishEG, style=shape.triangleup, location=location.belowbar, color=color.green, title="Bullish EG")
 plotshape(isBearishEG, style=shape.triangledown, location=location.abovebar, color=color.red, title="Bearish EG")
-plot(resLevel, color=color.red, style=plot.style_linebr, title="Resistance")
-plot(supLevel, color=color.green, style=plot.style_linebr, title="Support")
+plot(resLevel, color=color.new(color.red, 50), style=plot.style_linebr, title="Resistance")
+plot(supLevel, color=color.new(color.green, 50), style=plot.style_linebr, title="Support")
